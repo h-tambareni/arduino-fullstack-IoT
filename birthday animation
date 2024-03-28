@@ -1,0 +1,55 @@
+#include <Adafruit_GFX.h>    
+#include <Adafruit_ST7735.h> 
+#include <SPI.h>
+
+#define TFT_CS   10
+#define TFT_RST  9
+#define TFT_DC   8
+
+Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
+
+void setup() {
+  tft.initR(INITR_BLACKTAB);
+  tft.setRotation(1);    
+  displayCenteredText("Happy", "Birthday");
+}
+
+void displayCenteredText(String line1, String line2) {
+  tft.fillScreen(ST7735_BLACK);
+  tft.setTextSize(2); // Adjust text size as needed
+
+  // Calculate x and y position to center "Happy"
+  int16_t x1, y1;
+  uint16_t w1, h1;
+  tft.getTextBounds(line1, 0, 0, &x1, &y1, &w1, &h1);
+  int x_center1 = (tft.width() - w1) / 2;
+
+  // Calculate x and y position to center "Birthday"
+  int16_t x2, y2;
+  uint16_t w2, h2;
+  tft.getTextBounds(line2, 0, 0, &x2, &y2, &w2, &h2);
+  int x_center2 = (tft.width() - w2) / 2;
+
+  // Display the first line
+  tft.setCursor(x_center1, (tft.height() / 2) - h1);
+  tft.setTextColor(ST7735_WHITE); // Change color if needed
+  tft.print(line1);
+
+  // Display the second line
+  tft.setCursor(x_center2, tft.height() / 2);
+  tft.setTextColor(ST7735_WHITE); // Change color if needed
+  tft.print(line2);
+}
+
+void loop() {
+  
+  // Redraw the centered text without clearing the screen
+  displayCenteredText("Happy", "Birthday");
+
+  // Redraw balloons and confetti to create an animation effect
+  for (int i = 0; i < 30; i++) {
+    tft.fillCircle(random(tft.width()), random(tft.height()), 3, random(0xFFFF));
+  }
+
+  delay(500); // Adjust delay for the animation speed
+}
