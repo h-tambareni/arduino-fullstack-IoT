@@ -1,0 +1,124 @@
+#include <WiFi.h>
+#include <WebServer.h>
+#include <SPI.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_ST7735.h>
+
+// Ultrasonic Sensor Pins
+#define TRIG_PIN 19
+#define ECHO_PIN 22
+
+// LCD pin setup
+#define TFT_CS   4  // Chip select
+#define TFT_RST  5  // Reset pin
+#define TFT_DC   2  // Data/Command pin
+
+// Initialize Adafruit ST7735
+Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
+
+// WiFi credentials
+const char* ssid = "Tambareni 5G";
+const char* password = "H2kinfosys";
+
+// Web server on port 80
+WebServer server(80);
+
+unsigned long lastPresenceTime = millis();
+const long timeout = 5000;  // 5 seconds timeout
+bool displayOn = true;
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+  tft.initR(INITR_BLACKTAB);  // Initialize ST7735S chip
+  tft.setRotation(1);         // Landscape orientation
+  tft.fillScreen(ST7735_BLACK);
+
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("WiFi connected.");
+  Serial.print("IP Address: ");
+  Serial.println(WiFi.localIP());
+
+  server.on("/", HTTP_GET, handleRoot);
+  server.on("/message", HTTP_POST, handleMessage);
+  server.begin();
+  Serial.println("HTTP server started.");
+}
+
+void loop() {
+  server.handleClient();
+  checkPresence();
+}
+
+void checkPresence() {
+  digitalWrite(TRIG_PIN, LOW);
+  delayMicroseconds(2);
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+  
+  long duration = pulseIn(ECHO_PIN, HIGH);
+  long distance = duration * 0.034 / 2;
+
+  if (distance < 50) {  // presence detected within 50 cm
+    lastPresenceTime = millis();
+    if (!displayOn) {
+      displayOn = true;
+      tft.fillScreen(ST7735_BLACK);
+    }
+  } else if (displayOn && millis() - lastPresenceTime > timeout) {
+    displayOn = false;
+    tft.fillScreen(ST7735_BLACK);  // turn off display
+  }
+}
+
+void handleRoot() {
+  String html = R"(
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ILUVJR</title>
+<style>
+  body { font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+  .container { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+  input[type="text"], input[type="submit"] { padding: 10px; margin: 10px 0; width: 100%; box-sizing: border-box; }
+  input[type="submit"] { background: #007bff; color: white; border: none; cursor: pointer; }
+  input[type="submit"]:hover { background: #0056b3; }
+</style>
+</head>
+<body>
+  <div class="container">
+    <h1>Send Jahnavi a Message <3 </h1>
+    <form action="/message" method="post">
+      <input type="text" name="message" placeholder="'Tell her you love her :)'" required>
+      <input type="submit" value="Send">
+    </form>
+  </div>
+</body>
+</html>
+)";
+  server.send(200, "text/html", html);
+}
+
+void handleMessage() {
+  if (server.hasArg("message")) {
+    String message = server.arg("message");
+    if (displayOn) {
+      tft.fillScreen(ST7735_BLACK);
+      tft.setTextSize(2);
+      tft.setTextColor(ST7735_WHITE);
+      tft.setCursor(0, 0);
+      tft.print(message);
+    }
+    server.send(200, "text/plain", "Message received: " + message);
+  } else {
+    server.send(400, "text/plain", "No message received");
+  }
+}
